@@ -21,6 +21,7 @@ export type {
   GatewayLanguageModelOptions as GatewayProviderOptions,
 } from './gateway-provider-options';
 export {
+  GatewayConnectionError,
   GatewayError,
   GatewayAuthenticationError,
   GatewayInvalidRequestError,
