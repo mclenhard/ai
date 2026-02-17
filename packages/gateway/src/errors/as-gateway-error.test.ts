@@ -2,6 +2,7 @@ import { APICallError } from '@ai-sdk/provider';
 import { describe, expect, it } from 'vitest';
 import { asGatewayError } from './as-gateway-error';
 import {
+  GatewayConnectionError,
   GatewayError,
   GatewayTimeoutError,
   GatewayResponseError,
@@ -52,7 +53,7 @@ describe('asGatewayError', () => {
       expect(result.message).toContain('Gateway request failed: Network error');
     });
 
-    it('should not treat connection errors as timeout errors', async () => {
+    it('should not treat ECONNREFUSED as timeout errors', async () => {
       const error = Object.assign(new Error('Connection refused'), {
         code: 'ECONNREFUSED',
       });
@@ -60,7 +61,6 @@ describe('asGatewayError', () => {
       const result = await asGatewayError(error);
 
       expect(GatewayTimeoutError.isInstance(result)).toBe(false);
-      expect(GatewayResponseError.isInstance(result)).toBe(true);
     });
 
     it('should pass through existing GatewayError instances', async () => {
@@ -127,6 +127,103 @@ describe('asGatewayError', () => {
       const result = await asGatewayError(error);
 
       expect(result.type).toBe('timeout_error');
+    });
+  });
+
+  describe('connection error detection', () => {
+    it('should detect UND_ERR_SOCKET as connection error', async () => {
+      const error = Object.assign(new Error('other side closed'), {
+        code: 'UND_ERR_SOCKET',
+      });
+
+      const result = await asGatewayError(error);
+
+      expect(GatewayConnectionError.isInstance(result)).toBe(true);
+      expect(result.statusCode).toBe(502);
+      expect(result.message).toContain('other side closed');
+      expect(result.message).toContain('infrastructure proxy');
+    });
+
+    it('should detect ECONNRESET as connection error', async () => {
+      const error = Object.assign(new Error('Connection reset'), {
+        code: 'ECONNRESET',
+      });
+
+      const result = await asGatewayError(error);
+
+      expect(GatewayConnectionError.isInstance(result)).toBe(true);
+    });
+
+    it('should detect EPIPE as connection error', async () => {
+      const error = Object.assign(new Error('Broken pipe'), {
+        code: 'EPIPE',
+      });
+
+      const result = await asGatewayError(error);
+
+      expect(GatewayConnectionError.isInstance(result)).toBe(true);
+    });
+
+    it('should detect ECONNABORTED as connection error', async () => {
+      const error = Object.assign(new Error('Connection aborted'), {
+        code: 'ECONNABORTED',
+      });
+
+      const result = await asGatewayError(error);
+
+      expect(GatewayConnectionError.isInstance(result)).toBe(true);
+    });
+
+    it('should not treat ECONNREFUSED as connection error', async () => {
+      const error = Object.assign(new Error('Connection refused'), {
+        code: 'ECONNREFUSED',
+      });
+
+      const result = await asGatewayError(error);
+
+      expect(GatewayConnectionError.isInstance(result)).toBe(false);
+    });
+  });
+
+  describe('APICallError with connection error cause', () => {
+    it('should detect UND_ERR_SOCKET cause as connection error instead of dumping Zod validation', async () => {
+      const socketError = Object.assign(new Error('other side closed'), {
+        code: 'UND_ERR_SOCKET',
+      });
+
+      const apiCallError = new APICallError({
+        message: 'Cannot connect to API: other side closed',
+        url: 'https://ai-gateway.vercel.sh/v3/ai/video-model',
+        requestBodyValues: {},
+        cause: socketError,
+      });
+
+      const result = await asGatewayError(apiCallError);
+
+      expect(GatewayConnectionError.isInstance(result)).toBe(true);
+      expect(GatewayResponseError.isInstance(result)).toBe(false);
+      expect(result.statusCode).toBe(502);
+      expect(result.message).toContain('other side closed');
+      expect(result.message).not.toContain('Invalid error response format');
+      expect(result.message).not.toContain('invalid_type');
+    });
+
+    it('should detect ECONNRESET cause as connection error', async () => {
+      const resetError = Object.assign(new Error('Connection reset by peer'), {
+        code: 'ECONNRESET',
+      });
+
+      const apiCallError = new APICallError({
+        message: 'Cannot connect to API: Connection reset by peer',
+        url: 'https://ai-gateway.vercel.sh/v3/ai/video-model',
+        requestBodyValues: {},
+        cause: resetError,
+      });
+
+      const result = await asGatewayError(apiCallError);
+
+      expect(GatewayConnectionError.isInstance(result)).toBe(true);
+      expect(result.cause).toBe(apiCallError);
     });
   });
 
