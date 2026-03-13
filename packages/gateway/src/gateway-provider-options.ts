@@ -66,6 +66,11 @@ const gatewayLanguageModelOptions = lazySchema(() =>
        */
       hipaaCompliant: z.boolean().optional(),
       /**
+       * An identifier for the entity to track spend quotas against.
+       * When set, the gateway enforces spend limits associated with this ID.
+       */
+      quotaEntityId: z.string().optional(),
+      /**
        * Per-provider timeouts for BYOK credentials in milliseconds.
        * Controls how long to wait for a provider to start responding
        * before falling back to the next available provider.

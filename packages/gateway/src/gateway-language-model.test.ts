@@ -1522,6 +1522,26 @@ describe('GatewayLanguageModel', () => {
       });
     });
 
+    it('should pass quotaEntityId option', async () => {
+      prepareJsonResponse({
+        content: { type: 'text', text: 'Test response' },
+      });
+
+      await createTestModel().doGenerate({
+        prompt: TEST_PROMPT,
+        providerOptions: {
+          gateway: {
+            quotaEntityId: 'team-abc-123',
+          },
+        },
+      });
+
+      const requestBody = await server.calls[0].requestBodyJson;
+      expect(requestBody.providerOptions).toEqual({
+        gateway: { quotaEntityId: 'team-abc-123' },
+      });
+    });
+
     it('should pass both zeroDataRetention and hipaaCompliant options', async () => {
       prepareJsonResponse({
         content: { type: 'text', text: 'Test response' },
